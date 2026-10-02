@@ -1,0 +1,94 @@
+{
+  "$id": "https://github.com/data-fair/catalog-ftp/catalog-config",
+  "x-exports": ["types", "validate", "schema"],
+  "title": "FTPConfig",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["url"],
+  "properties": {
+    "url": {
+      "type": "string",
+      "title": "Host Address",
+      "x-i18n-title": {
+        "fr": "Adresse de l'hôte"
+      },
+      "description": "The FTP server host",
+      "x-i18n-description": {
+        "fr": "L'adresse de l'hôte du serveur FTP (veuillez vous référer à la documentation technique du catalogue)"
+      },
+      "examples": ["exemple-d-hote.fr"]
+    },
+    "port": {
+      "type": "integer",
+      "title": "Port",
+      "description": "The FTP server port. Leave at 21 for FTP and explicit FTPS; implicit FTPS uses port 990",
+      "x-i18n-description": {
+        "fr": "Le port du serveur FTP. Laissez 21 pour FTP et FTPS explicite ; le FTPS implicite utilise le port 990"
+      },
+      "default": 21
+    },
+    "login": {
+      "type": "string",
+      "title": "Login / Username",
+      "x-i18n-title": {
+        "fr": "Identifiant / Nom d'utilisateur"
+      },
+      "description": "The login or username used to access the catalog. Leave empty for anonymous access",
+      "x-i18n-description": {
+        "fr": "L'identifiant (login ou nom d'utilisateur) utilisé pour accéder au catalogue. Laissez vide pour un accès anonyme"
+      }
+    },
+    "password": {
+      "type": "string",
+      "title": "Password",
+      "x-i18n-title": {
+        "fr": "Mot de passe"
+      },
+      "description": "Enter your account password for the remote server. Not needed for anonymous access",
+      "x-i18n-description": {
+        "fr": "Renseignez le mot de passe associé à votre compte sur le serveur distant. Inutile pour un accès anonyme"
+      },
+      "layout": {
+        "props": {
+          "type": "password",
+          "autocomplete": "suppress"
+        }
+      }
+    },
+    "secure": {
+      "type": "string",
+      "title": "Encryption",
+      "x-i18n-title": {
+        "fr": "Chiffrement"
+      },
+      "description": "FTP sends credentials in clear text; prefer FTPS when the server supports it. Implicit FTPS is the historical mode listening on port 990",
+      "x-i18n-description": {
+        "fr": "Le FTP transmet les identifiants en clair ; préférez FTPS si le serveur le supporte. Le FTPS implicite est le mode historique écoutant sur le port 990"
+      },
+      "default": "none",
+      "oneOf": [
+        {
+          "const": "none",
+          "title": "FTP (no encryption)",
+          "x-i18n-title": {
+            "fr": "FTP (sans chiffrement)"
+          }
+        },
+        {
+          "const": "explicit",
+          "title": "FTPS (explicit TLS)",
+          "x-i18n-title": {
+            "fr": "FTPS (TLS explicite)"
+          }
+        },
+        {
+          "const": "implicit",
+          "title": "FTPS (implicit TLS, port 990)",
+          "x-i18n-title": {
+            "fr": "FTPS (TLS implicite, port 990)"
+          }
+        }
+      ]
+    }
+  }
+}
