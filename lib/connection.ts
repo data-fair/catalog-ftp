@@ -7,16 +7,18 @@ import type { FTPConfig } from '#types'
  * - An empty login means anonymous access (basic-ftp defaults to anonymous/guest).
  * - Implicit FTPS uses port 990 when the port was left at its default value.
  * - Certificate verification is left strict: a self-signed certificate fails
- *   instead of being silently trusted.
+ *   instead of being silently trusted, unless its authority is given in `ca`.
  */
 export const ftpAccessOptions = (catalogConfig: FTPConfig, secrets: Record<string, string>): AccessOptions => {
   const implicit = catalogConfig.secure === 'implicit'
   const port = implicit && (!catalogConfig.port || catalogConfig.port === 21) ? 990 : (catalogConfig.port ?? 21)
+  const secure = implicit ? 'implicit' : catalogConfig.secure === 'explicit'
   const password = catalogConfig.password === '********' ? secrets.password : catalogConfig.password
   return {
     host: catalogConfig.url,
     port,
-    secure: implicit ? 'implicit' : catalogConfig.secure === 'explicit',
+    secure,
+    ...(secure && catalogConfig.ca ? { secureOptions: { ca: catalogConfig.ca } } : {}),
     ...(catalogConfig.login ? { user: catalogConfig.login } : {}),
     ...(catalogConfig.login && password ? { password } : {})
   }

@@ -1,12 +1,12 @@
 import type { FTPConfig } from '#types'
 import type { CatalogPlugin, GetResourceContext, Resource } from '@data-fair/types-catalogs'
 import { openFTPClient } from './connection.ts'
+import { normalizePath } from './imports.ts'
 
 /**
- * Download localy a specific resource from a FTP server, and retrieves the metadata with the filepath of the downloaded file.
+ * Download locally a specific resource from a FTP server, and retrieves the metadata with the filepath of the downloaded file.
  *
- * @param catalogConfig - The FTP configuration object.
- * @param resourceId - The identifier (path) of the resource.
+ * @param context - The context containing catalog configuration, secrets, resource ID and temporary directory path.
  * @returns A `Resource` object representing the file.
  */
 export const getResource = async (context: GetResourceContext<FTPConfig>): ReturnType<CatalogPlugin['getResource']> => {
@@ -16,11 +16,12 @@ export const getResource = async (context: GetResourceContext<FTPConfig>): Retur
 }
 
 export const getMetaData = async ({ resourceId }: GetResourceContext<FTPConfig>): Promise<Resource> => {
-  const pointPos = resourceId.lastIndexOf('.')
+  const name = resourceId.substring(resourceId.lastIndexOf('/') + 1)
+  const pointPos = name.lastIndexOf('.')
   return {
     id: resourceId,
-    title: resourceId.substring(resourceId.lastIndexOf('/') + 1),
-    format: (pointPos === -1) ? '' : (resourceId.substring(pointPos + 1)),
+    title: name,
+    format: (pointPos === -1) ? '' : (name.substring(pointPos + 1)),
     filePath: ''
   }
 }
@@ -40,7 +41,7 @@ const downloadResource = async ({ catalogConfig, resourceId, secrets, tmpDir }: 
     throw new Error(`Invalid configuration: ${err.message}`, { cause: err })
   }
 
-  const remotePath = resourceId.replace(/^\.\//, '')
+  const remotePath = normalizePath(resourceId).replace(/^\.\//, '')
   const destinationPath = tmpDir + '/' + remotePath.substring(remotePath.lastIndexOf('/') + 1)
 
   // the plugin runs inside the long lived catalogs worker: an undisposed

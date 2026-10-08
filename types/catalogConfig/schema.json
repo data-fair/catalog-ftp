@@ -16,7 +16,12 @@
       "x-i18n-description": {
         "fr": "L'adresse de l'hôte du serveur FTP (veuillez vous référer à la documentation technique du catalogue)"
       },
-      "examples": ["exemple-d-hote.fr"]
+      "examples": ["exemple-d-hote.fr"],
+      "pattern": "^(?!.*://)\\S+$",
+      "errorMessage": "Enter the host name only, without protocol (ftp://) nor spaces",
+      "x-i18n-errorMessage": {
+        "fr": "Renseignez uniquement le nom de l'hôte, sans protocole (ftp://) ni espaces"
+      }
     },
     "port": {
       "type": "integer",
@@ -25,7 +30,9 @@
       "x-i18n-description": {
         "fr": "Le port du serveur FTP. Laissez 21 pour FTP et FTPS explicite ; le FTPS implicite utilise le port 990"
       },
-      "default": 21
+      "default": 21,
+      "minimum": 1,
+      "maximum": 65535
     },
     "login": {
       "type": "string",
@@ -89,6 +96,21 @@
           }
         }
       ]
+    },
+    "ca": {
+      "type": "string",
+      "title": "CA certificate",
+      "x-i18n-title": {
+        "fr": "Certificat de l'autorité (CA)"
+      },
+      "description": "Only for an FTPS server whose certificate is self-signed or issued by a private authority: paste the PEM certificate of that authority (or the self-signed certificate of the server). Leave empty to trust the public authorities only",
+      "x-i18n-description": {
+        "fr": "Uniquement pour un serveur FTPS dont le certificat est auto-signé ou émis par une autorité privée : collez le certificat PEM de cette autorité (ou le certificat auto-signé du serveur). Laissez vide pour ne faire confiance qu'aux autorités publiques"
+      },
+      "layout": {
+        "comp": "textarea",
+        "if": "parent.data.secure === 'explicit' || parent.data.secure === 'implicit'"
+      }
     }
   }
 }

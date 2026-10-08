@@ -7,6 +7,16 @@ import { openFTPClient } from './connection.ts'
 type ResourceList = Awaited<ReturnType<CatalogPlugin['list']>>['results']
 
 /**
+ * Normalize a folder or resource id into the './a/b' form produced by the listing of the root folder.
+ * Ids stored without the './' prefix, with doubled or trailing slashes, still resolve to the same path.
+ */
+export const normalizePath = (id?: string) => {
+  const path = (id ?? '').replace(/\/{2,}/g, '/').replace(/^(\.\/)+/, '').replace(/^\.$/, '').replace(/\/$/, '')
+  if (!path) return '.'
+  return path.startsWith('/') ? path : './' + path
+}
+
+/**
  * Prepares a list of files and folders from the FTP directory listing.
  *
  * @param list - The array of file objects returned by the FTP `list` method.
@@ -22,7 +32,7 @@ const prepareFiles = (list: FileInfo[], path: string): (Folder[] | ResourceList)
         id: path + '/' + file.name,
         title: file.name,
         type: 'folder',
-        updatedAt: file.modifiedAt
+        updatedAt: file.modifiedAt?.toISOString()
       } as Folder
     } else {
       // ResourceList
@@ -34,7 +44,7 @@ const prepareFiles = (list: FileInfo[], path: string): (Folder[] | ResourceList)
         format: (pointPos === -1) ? '' : (file.name.substring(pointPos + 1)),
         mimeType: '',
         size: file.size,
-        updatedAt: file.modifiedAt
+        updatedAt: file.modifiedAt?.toISOString()
       } as ResourceList[number]
     }
   })
@@ -58,12 +68,13 @@ export const list = async ({ catalogConfig, secrets, params }: ListContext<FTPCo
   // the plugin runs inside the long lived catalogs process: an undisposed
   // connection keeps a session alive on the server until the pod restarts
   try {
-    const path = params.currentFolderId ?? '.'
+    const path = normalizePath(params.currentFolderId)
     const results = prepareFiles(await client.list(path), path)
 
+    // breadcrumb with the same ids as the listing ('./a', './a/b'), absolute paths keep their leading '/'
     const pathFolder: Folder[] = []
-    let parentId: string | undefined = (params.currentFolderId?.indexOf('./')) === -1 ? params.currentFolderId : params.currentFolderId?.substring(params.currentFolderId.indexOf('./') + 2)
-    while (parentId && parentId !== '') {
+    let parentId = path
+    while (parentId !== '.' && parentId !== '') {
       pathFolder.unshift({
         id: parentId,
         title: parentId.substring(parentId.lastIndexOf('/') + 1),

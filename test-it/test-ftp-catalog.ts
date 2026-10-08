@@ -88,12 +88,10 @@ describe('test the ftp catalog', () => {
   // Démarrage et initialisation du serveur FTP avant les tests
   before(async () => {
     try {
-      const { stdout, stderr } = await exec('docker compose up -d', { cwd: './test-it' })
+      // --wait blocks until the healthcheck sees the FTP greeting
+      const { stdout, stderr } = await exec('docker compose up -d --wait', { cwd: './test-it' })
       console.log(stdout)
       console.error(stderr)
-
-      // Temps d'attente pour permettre au conteneur de vraiment se lancer
-      await new Promise(resolve => setTimeout(resolve, 5000))
     } catch (err) {
       console.error('Erreur pendant le démarrage :', err)
       throw err
@@ -103,7 +101,7 @@ describe('test the ftp catalog', () => {
   // Arrêt du serveur FTP après les tests
   after(async () => {
     try {
-      const { stdout, stderr } = await exec('docker compose down', { cwd: './test-it' })
+      const { stdout, stderr } = await exec('docker compose down -v', { cwd: './test-it' })
       console.log(stdout)
       console.error(stderr)
     } catch (err) {
@@ -138,6 +136,22 @@ describe('test the ftp catalog', () => {
       assert.ok(res.results.some((val) => val.type === 'resource'))
     })
 
+    it('should give the same ids whatever the form of the folder id', async () => {
+      for (const currentFolderId of ['landing-zone/donnees', './landing-zone/donnees/', './/landing-zone//donnees']) {
+        const res = await catalogPlugin.list({ catalogConfig, secrets, params: { currentFolderId } })
+        assert.ok(res.results.some((val) => val.id === './landing-zone/donnees/donnees.csv'), currentFolderId)
+        assert.deepStrictEqual(res.path.map(p => p.id), ['./landing-zone', './landing-zone/donnees'], currentFolderId)
+      }
+    })
+
+    it('should list the root folder with ISO dates', async () => {
+      const res = await catalogPlugin.list({ catalogConfig, secrets, params: { currentFolderId: './' } })
+      const folder = res.results.find((val) => val.id === './landing-zone')
+      assert.ok(folder, 'landing-zone should be listed as ./landing-zone')
+      assert.strictEqual(res.path.length, 0)
+      assert.match(folder.updatedAt ?? '', /^\d{4}-\d{2}-\d{2}T/)
+    })
+
     describe('FTP list erreur', () => {
       invalidTestsConfigs.forEach(({ description, config, secret }) => {
         it('list ' + description, async () => {
@@ -165,6 +179,19 @@ describe('test the ftp catalog', () => {
     })
     beforeEach(() => fs.emptyDirSync('./test-it/test-dl'))
     after(() => fs.removeSync('./test-it/test-dl'))
+
+    it('should take the format from the file name only', async () => {
+      const { getMetaData } = await import('../lib/download.ts')
+      const format = async (resourceId: string) => (await getMetaData({ ...getResourceDefaultConfig, resourceId })).format
+      assert.strictEqual(await format('./landing-zone/README'), '')
+      assert.strictEqual(await format('./dir.v2/data'), '')
+      assert.strictEqual(await format('./dir.v2/data.csv'), 'csv')
+    })
+
+    it('should download a resource whose id lacks the ./ prefix', async () => {
+      const res = await catalogPlugin.getResource({ ...getResourceDefaultConfig, resourceId: 'landing-zone/donnees/donnees.csv' })
+      assert.ok(await fs.pathExists(res.filePath))
+    })
 
     it('should return the resource test.txt', async () => {
       const res = await catalogPlugin.getResource({
@@ -247,6 +274,23 @@ describe('test the ftp catalog', () => {
         })
       }, /Connection test failed/, 'Doit renvoyer une erreur')
     })
+
+    it('should give the reason of the failure', async () => {
+      await assert.rejects(catalogPlugin.prepare({
+        catalogConfig: deepClone(catalogConfig),
+        secrets: { password: '0000' },
+        capabilities: []
+      }), /Connection test failed: 530/)
+    })
+
+    it('should drop the stored password when the access becomes anonymous', async () => {
+      const { login, ...anonymousConfig } = deepClone(catalogConfig)
+      const secrets: Record<string, string> = { password: '12345' }
+      // the test server refuses anonymous logins, only the secrets handling matters here
+      await catalogPlugin.prepare({ catalogConfig: anonymousConfig, secrets, capabilities: [] }).catch(() => {})
+      assert.strictEqual(secrets.password, undefined)
+      assert.strictEqual(anonymousConfig.password, undefined)
+    })
   })
 
   describe('connection options', () => {
@@ -277,6 +321,28 @@ describe('test the ftp catalog', () => {
     it('should use explicit TLS when asked', () => {
       const access = ftpAccessOptions({ url: 'ftp.exemple.fr', secure: 'explicit' }, {})
       assert.strictEqual(access.secure, true)
+    })
+  })
+
+  describe('FTPS (explicit TLS, self-signed test certificate)', () => {
+    const ftpsConfig: FTPConfig = { ...catalogConfig, secure: 'explicit' }
+
+    it('should reject the self-signed certificate without a CA', async () => {
+      await assert.rejects(
+        catalogPlugin.list({ catalogConfig: ftpsConfig, secrets, params: { currentFolderId: './landing-zone' } }),
+        /self-signed certificate/
+      )
+    })
+
+    it('should list over TLS when the CA is given', async () => {
+      const ca = await fs.readFile('./test-it/config/test-cert.pem', 'utf8')
+      const res = await catalogPlugin.list({ catalogConfig: { ...ftpsConfig, ca }, secrets, params: { currentFolderId: './landing-zone' } })
+      assert.ok(res.results.some((val) => val.id === './landing-zone/test.txt'))
+    })
+
+    it('should only pass the CA when TLS is enabled', () => {
+      assert.strictEqual(ftpAccessOptions({ url: 'h', ca: 'PEM' }, {}).secureOptions, undefined)
+      assert.deepStrictEqual(ftpAccessOptions({ url: 'h', secure: 'implicit', ca: 'PEM' }, {}).secureOptions, { ca: 'PEM' })
     })
   })
 

@@ -1,13 +1,17 @@
 # Serveur FTP accessible via le port 2121.
 # Seul le mode passif est supporté (limite de basic-ftp, pas de mode actif).
 
+# explicit project name: the default one ("test-it") is shared with the other catalog plugins
+name: catalog-ftp-test
+
 services:
   ftp:
-    image: stilliard/pure-ftpd:latest
-    container_name: ftp
+    image: stilliard/pure-ftpd:trixie-1.0.50
     volumes:
       # Répertoire racine de l'utilisateur test3
       - ./data-test:/home/test3/landing-zone
+      # Certificat auto-signé de test (CN=localhost) : active le FTPS explicite (--tls=1)
+      - ./config/pure-ftpd.pem:/etc/ssl/private/pure-ftpd.pem:ro
     ports:
       - "2121:21"
       - "30000-30009:30000-30009"
@@ -16,3 +20,7 @@ services:
       FTP_USER_NAME: test3
       FTP_USER_PASS: 12345
       FTP_USER_HOME: /home/test3
+    healthcheck:
+      test: ["CMD", "timeout", "2", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/21 && head -c 3 <&3 | grep -q 220"]
+      interval: 1s
+      retries: 30
